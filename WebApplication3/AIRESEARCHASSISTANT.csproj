@@ -1,0 +1,80 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="..\clientapp\package-lock.json" Link="src\clientapp\package-lock.json" />
+    <Content Include="..\clientapp\package.json" Link="src\clientapp\package.json" />
+    <Content Include="..\clientapp\public\favicon.ico" Link="src\clientapp\public\favicon.ico" />
+    <Content Include="..\clientapp\public\index.html" Link="src\clientapp\public\index.html" />
+    <Content Include="..\clientapp\public\logo192.png" Link="src\clientapp\public\logo192.png" />
+    <Content Include="..\clientapp\public\logo512.png" Link="src\clientapp\public\logo512.png" />
+    <Content Include="..\clientapp\public\manifest.json" Link="src\clientapp\public\manifest.json" />
+    <Content Include="..\clientapp\public\robots.txt" Link="src\clientapp\public\robots.txt" />
+    <Content Include="..\clientapp\src\App.css" Link="src\clientapp\src\App.css" />
+    <Content Include="..\clientapp\src\index.css" Link="src\clientapp\src\index.css" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.OpenApi" Version="1.6.14" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="src\clientapp\public\" />
+    <Folder Include="src\clientapp\src\components\" />
+    <Folder Include="src\clientapp\src\services\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\clientapp\.gitignore" Link="src\clientapp\.gitignore" />
+    <None Include="..\clientapp\README.md" Link="src\clientapp\README.md" />
+    <None Include="..\clientapp\src\App.js" Link="src\clientapp\src\App.js" />
+    <None Include="..\clientapp\src\App.test.js" Link="src\clientapp\src\App.test.js" />
+    <None Include="..\clientapp\src\index.js" Link="src\clientapp\src\index.js" />
+    <None Include="..\clientapp\src\translations.js" Link="src\clientapp\src\translations.js" />
+    <None Include="..\clientapp\src\logo.svg" Link="src\clientapp\src\logo.svg" />
+    <None Include="..\clientapp\src\reportWebVitals.js" Link="src\clientapp\src\reportWebVitals.js" />
+    <None Include="..\clientapp\src\setupTests.js" Link="src\clientapp\src\setupTests.js" />
+
+    <!-- Components in Solution Explorer -->
+    <None Include="..\clientapp\src\components\Navbar.js" Link="src\clientapp\src\components\Navbar.js" />
+    <None Include="..\clientapp\src\components\HeroSection.js" Link="src\clientapp\src\components\HeroSection.js" />
+    <None Include="..\clientapp\src\components\SettingsPanel.js" Link="src\clientapp\src\components\SettingsPanel.js" />
+    <None Include="..\clientapp\src\components\ResearchWalkthroughVideo.js" Link="src\clientapp\src\components\ResearchWalkthroughVideo.js" />
+    <None Include="..\clientapp\src\components\IntegrationsSection.js" Link="src\clientapp\src\components\IntegrationsSection.js" />
+    <None Include="..\clientapp\src\components\AboutUsSection.js" Link="src\clientapp\src\components\AboutUsSection.js" />
+    <None Include="..\clientapp\src\components\ComparisonSection.js" Link="src\clientapp\src\components\ComparisonSection.js" />
+    <None Include="..\clientapp\src\components\CitationReportSection.js" Link="src\clientapp\src\components\CitationReportSection.js" />
+    <None Include="..\clientapp\src\components\SocialProofSection.js" Link="src\clientapp\src\components\SocialProofSection.js" />
+    <None Include="..\clientapp\src\components\FooterBlock.js" Link="src\clientapp\src\components\FooterBlock.js" />
+    <None Include="..\clientapp\src\components\AiResearchChat.js" Link="src\clientapp\src\components\AiResearchChat.js" />
+    <None Include="..\clientapp\src\components\Dashboard.js" Link="src\clientapp\src\components\Dashboard.js" />
+    <None Include="..\clientapp\src\components\LoginPage.js" Link="src\clientapp\src\components\LoginPage.js" />
+    <None Include="..\clientapp\src\components\SignupPage.js" Link="src\clientapp\src\components\SignupPage.js" />
+    <None Include="..\clientapp\src\components\ProfileModal.js" Link="src\clientapp\src\components\ProfileModal.js" />
+    <None Include="..\clientapp\src\components\SettingsModal.js" Link="src\clientapp\src\components\SettingsModal.js" />
+    <None Include="..\clientapp\src\components\PrivacyPolicyPage.js" Link="src\clientapp\src\components\PrivacyPolicyPage.js" />
+    <None Include="..\clientapp\src\components\TermsOfServicePage.js" Link="src\clientapp\src\components\TermsOfServicePage.js" />
+
+    <!-- Services in Solution Explorer -->
+    <None Include="..\clientapp\src\services\researchGenerator.js" Link="src\clientapp\src\services\researchGenerator.js" />
+    <None Include="..\clientapp\src\services\authService.js" Link="src\clientapp\src\services\authService.js" />
+    <None Include="..\clientapp\src\services\researchService.js" Link="src\clientapp\src\services\researchService.js" />
+    <None Include="..\clientapp\src\services\apiHelper.js" Link="src\clientapp\src\services\apiHelper.js" />
+  </ItemGroup>
+
+</Project>
