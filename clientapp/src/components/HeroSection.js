@@ -1,7 +1,7 @@
 import React from "react";
 import SettingsPanel from "./SettingsPanel";
 
-export default function HeroSection({ onFeatureClick, onGeneratedDoc, username, t }) {
+export default function HeroSection({ onFeatureClick, onGeneratedDoc, username, currentUser, t }) {
   const features = [
     { num: "01", icon: "📄", text: t.feat01 },
     { num: "02", icon: "↑", text: t.feat02 },
@@ -56,7 +56,7 @@ export default function HeroSection({ onFeatureClick, onGeneratedDoc, username, 
           ))}
         </div>
 
-        <SettingsPanel t={t} onGeneratedDoc={onGeneratedDoc} username={username} />
+        <SettingsPanel t={t} onGeneratedDoc={onGeneratedDoc} username={username} currentUser={currentUser} />
       </div>
     </section>
   );

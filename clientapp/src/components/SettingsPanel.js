@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { generateFullPaper } from "../services/researchGenerator";
 import { getUserDocs, saveUserDocs, incrementUserPdfCount } from "../services/userStorage";
+import { saveResearchPaperToBackend } from "../services/researchService";
 
-export default function SettingsPanel({ t, onGeneratedDoc, username }) {
+export default function SettingsPanel({ t, onGeneratedDoc, username, currentUser }) {
   const [pageCount, setPageCount] = useState(25);
   const [uploadedFile, setUploadedFile] = useState(null);
 
@@ -51,6 +52,10 @@ export default function SettingsPanel({ t, onGeneratedDoc, username }) {
         ? `Comprehensive Scientific Investigation & Synthesis of ${uploadedFile.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ")}`
         : "Emergent Paradigms in Modern Applied Computational Sciences";
 
+      const activeUser = currentUser || username || "guest";
+      const displayName = typeof activeUser === "object" ? (activeUser.fullName || activeUser.email || "Primary Researcher") : (activeUser || "Primary Researcher");
+      const userEmail = typeof activeUser === "object" ? (activeUser.email || "") : (typeof activeUser === "string" && activeUser.includes("@") ? activeUser : "");
+
       const newDoc = generateFullPaper({
         prompt: defaultTopic,
         pageCount: Number(pageCount) || 25,
@@ -58,15 +63,23 @@ export default function SettingsPanel({ t, onGeneratedDoc, username }) {
         citationLevel,
         language: docLang,
         selectedDatabases: ["Semantic Scholar", "PubMed", "arXiv", "Crossref"],
-        username: username || "Primary Researcher"
+        username: displayName
       });
 
-      // Save to isolated user repository
+      // Save to active user repository (and guest repository if not logged in yet)
       try {
-        const existingDocs = getUserDocs(username);
-        saveUserDocs(username, [newDoc, ...existingDocs]);
-        incrementUserPdfCount(username);
-      } catch (err) {}
+        const existingDocs = getUserDocs(activeUser);
+        const updatedDocs = [newDoc, ...existingDocs.filter(d => d.id !== newDoc.id)];
+        saveUserDocs(activeUser, updatedDocs);
+        incrementUserPdfCount(activeUser);
+
+        // If user has email or is registered, sync to SQL backend directly
+        if (userEmail) {
+          saveResearchPaperToBackend(newDoc, userEmail, displayName);
+        }
+      } catch (err) {
+        console.error("Error saving generated paper to user repository:", err);
+      }
 
       setIsGenerating(false);
       setGenStepText("");

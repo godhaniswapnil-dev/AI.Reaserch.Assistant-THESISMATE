@@ -1,5 +1,4 @@
 import React from "react";
-import AiResearchChat from "./AiResearchChat";
 
 export default function FooterBlock({ t, onNavigate, lang = "EN", username = "Researcher" }) {
   const handlePrivacyClick = (e) => {
@@ -47,8 +46,22 @@ export default function FooterBlock({ t, onNavigate, lang = "EN", username = "Re
           {t.contactDesc}
         </p>
 
-        {/* --- AI RESEARCH CHAT: ASK QUESTIONS DIRECTLY TO AI --- */}
-        <AiResearchChat onNavigate={onNavigate} t={t} lang={lang} username={username} />
+        <div style={{ marginTop: "22px" }}>
+          <a
+            href="mailto:support@thesismate.io"
+            className="btn-primary"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px 28px",
+              textDecoration: "none",
+              fontSize: "0.95rem"
+            }}
+          >
+            <i className="fa-solid fa-envelope"></i> Contact Support
+          </a>
+        </div>
       </div>
 
       <footer className="site-footer">

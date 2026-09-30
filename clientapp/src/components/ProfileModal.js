@@ -69,8 +69,20 @@ export default function ProfileModal({
               references: bp.referencesJson ? (typeof bp.referencesJson === "string" ? JSON.parse(bp.referencesJson) : bp.referencesJson) : [],
               sections: bp.sectionsJson ? (typeof bp.sectionsJson === "string" ? JSON.parse(bp.sectionsJson) : bp.sectionsJson) : {}
             }));
-            setUserDocs(formatted);
-            saveUserDocs(activeUser, formatted);
+            const localPapers = getUserDocs(activeUser) || [];
+            const docMap = new Map();
+            formatted.forEach((d) => {
+              if (d && d.id) docMap.set(String(d.id), d);
+            });
+            localPapers.forEach((d) => {
+              if (d && d.id) {
+                const existing = docMap.get(String(d.id));
+                docMap.set(String(d.id), { ...existing, ...d });
+              }
+            });
+            const merged = Array.from(docMap.values());
+            setUserDocs(merged);
+            saveUserDocs(activeUser, merged);
           }
         });
       }

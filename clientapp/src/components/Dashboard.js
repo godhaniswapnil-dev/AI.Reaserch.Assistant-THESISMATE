@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { translations } from "../translations";
-import { generateFullPaperAsync, generatePrintablePdfHtml } from "../services/researchGenerator";
+import { generateFullPaperAsync, generatePrintablePdfHtml, downloadDocx, downloadLatex } from "../services/researchGenerator";
 import { getUserProfile, getUserDocs, saveUserDocs, getUserPdfCount, incrementUserPdfCount } from "../services/userStorage";
 import { saveResearchPaperToBackend, deleteResearchPaperFromBackend, getAllResearchPapers, generateResearchPaperViaBackend } from "../services/researchService";
+import ResearchCharts from "./ResearchCharts";
+import PeerReviewModal from "./PeerReviewModal";
+import PlagiarismModal from "./PlagiarismModal";
+import DefenseSlidesModal from "./DefenseSlidesModal";
+import CitationGraphModal from "./CitationGraphModal";
+import { getMonographChapterDefinitions } from "../services/thesisMonographEngine";
 
 export default function Dashboard({ currentUser, username, onLogout, onNavigate, onOpenProfile, t, lang = "EN" }) {
   const activeT = t || translations[lang] || translations.EN;
@@ -17,42 +23,90 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
   // Synchronize state when user changes & load from SQL backend
   useEffect(() => {
     const curr = currentUser || username;
-    setUserProfile(getUserProfile(curr));
-    setDocuments(getUserDocs(curr));
-    setPdfDownloadCount(getUserPdfCount(curr));
+    const reloadFromStorage = () => {
+      setUserProfile(getUserProfile(curr));
+      setDocuments(getUserDocs(curr));
+      setPdfDownloadCount(getUserPdfCount(curr));
+    };
+
+    reloadFromStorage();
+
+    // Listen to real-time doc updates from Home page SettingsPanel or generation pipeline
+    const handleDocsUpdated = () => {
+      reloadFromStorage();
+    };
+    window.addEventListener("thesismate_docs_updated", handleDocsUpdated);
 
     const syncWithBackend = async () => {
       const email = typeof curr === "object" ? curr?.email : (typeof curr === "string" && curr.includes("@") ? curr : "");
       if (!email) return;
 
-      const backendPapers = await getAllResearchPapers(email);
-      if (backendPapers && Array.isArray(backendPapers)) {
-        const userBackendDocs = backendPapers.map((bp) => ({
-          id: bp.id,
-          title: bp.topic || bp.title || "Research Paper",
-          topic: bp.topic || "General Research",
-          date: new Date(bp.createdAt).toLocaleDateString(),
-          pages: bp.pages || 30,
-          words: (bp.pages || 30) * 320,
-          citations: bp.verifiedPct ? Math.round(bp.verifiedPct * 0.48) : 48,
-          verifiedPct: bp.verifiedPct || 100,
-          status: bp.status || "Verified",
-          style: bp.citationStyle || "APA 7th",
-          density: bp.citationLevel || "Sentence",
-          language: bp.language || "English",
-          abstract: bp.abstract || "",
-          keywords: bp.keywords ? bp.keywords.split(", ") : [],
-          references: bp.referencesJson ? (typeof bp.referencesJson === "string" ? JSON.parse(bp.referencesJson) : bp.referencesJson) : [],
-          sections: bp.sectionsJson ? (typeof bp.sectionsJson === "string" ? JSON.parse(bp.sectionsJson) : bp.sectionsJson) : {}
-        }));
+      try {
+        const backendPapers = await getAllResearchPapers(email);
+        if (backendPapers && Array.isArray(backendPapers)) {
+          const userBackendDocs = backendPapers.map((bp) => ({
+            id: bp.id,
+            title: bp.topic || bp.title || "Research Paper",
+            topic: bp.topic || "General Research",
+            date: new Date(bp.createdAt).toLocaleDateString(),
+            pages: bp.pages || 30,
+            words: (bp.pages || 30) * 320,
+            citations: bp.verifiedPct ? Math.round(bp.verifiedPct * 0.48) : 48,
+            verifiedPct: bp.verifiedPct || 100,
+            status: bp.status || "Verified",
+            style: bp.citationStyle || "APA 7th",
+            density: bp.citationLevel || "Sentence",
+            language: bp.language || "English",
+            abstract: bp.abstract || "",
+            keywords: bp.keywords ? (Array.isArray(bp.keywords) ? bp.keywords : bp.keywords.split(", ")) : [],
+            references: bp.referencesJson ? (typeof bp.referencesJson === "string" ? JSON.parse(bp.referencesJson) : bp.referencesJson) : [],
+            sections: bp.sectionsJson ? (typeof bp.sectionsJson === "string" ? JSON.parse(bp.sectionsJson) : bp.sectionsJson) : {}
+          }));
 
-        if (userBackendDocs.length > 0) {
-          setDocuments(userBackendDocs);
-          saveUserDocs(curr, userBackendDocs);
+          const localDocs = getUserDocs(curr) || [];
+          const docMap = new Map();
+
+          // Add backend documents first
+          userBackendDocs.forEach((d) => {
+            if (d && d.id) docMap.set(String(d.id), d);
+          });
+
+          // Merge local documents, preserving local documents and details
+          localDocs.forEach((d) => {
+            if (d && d.id) {
+              const existing = docMap.get(String(d.id));
+              docMap.set(String(d.id), { ...existing, ...d });
+            }
+          });
+
+          const mergedDocs = Array.from(docMap.values());
+          if (mergedDocs.length > 0) {
+            setDocuments(mergedDocs);
+            saveUserDocs(curr, mergedDocs);
+          }
+
+          // Automatically sync any local docs not yet present in SQL backend
+          const backendIdSet = new Set(userBackendDocs.map((d) => String(d.id)));
+          const displayName = typeof curr === "object" ? (curr?.name || curr?.displayName || "Researcher") : String(curr);
+          for (const localDoc of localDocs) {
+            if (localDoc && localDoc.id && !backendIdSet.has(String(localDoc.id))) {
+              try {
+                await saveResearchPaperToBackend(localDoc, email, displayName);
+              } catch (e) {
+                console.warn("Could not sync local doc to backend:", e);
+              }
+            }
+          }
         }
+      } catch (err) {
+        console.error("Dashboard backend sync error:", err);
       }
     };
     syncWithBackend();
+
+    return () => {
+      window.removeEventListener("thesismate_docs_updated", handleDocsUpdated);
+    };
   }, [currentUser, username]);
 
   // Navigation & Filter states
@@ -83,6 +137,15 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
 
   // Visual counter highlight pulse state
   const [justIncremented, setJustIncremented] = useState(false);
+
+  // New Advanced Academic Feature States:
+  const [isListening, setIsListening] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioProgressText, setAudioProgressText] = useState("");
+  const [isPeerReviewOpen, setIsPeerReviewOpen] = useState(false);
+  const [isPlagiarismOpen, setIsPlagiarismOpen] = useState(false);
+  const [isDefenseSlidesOpen, setIsDefenseSlidesOpen] = useState(false);
+  const [isCitationGraphOpen, setIsCitationGraphOpen] = useState(false);
 
   const presetTopics = [
     "Quantum Machine Learning in Oncology Drug Discovery",
@@ -124,7 +187,6 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
     }
   };
 
-
   const displayName = userProfile?.name || username || currentUser?.fullName || currentUser?.email || (activeT.navResearcher || "Researcher");
   const userAffiliation = userProfile?.institution ? (userProfile.department ? `${userProfile.institution} • ${userProfile.department}` : userProfile.institution) : "ThesisMate Research Workspace";
 
@@ -147,6 +209,107 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
       } catch (e) {}
     }
   }, [currentUser]);
+
+  // Voice Input Speech-to-Text handler
+  const handleToggleVoiceInput = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showToast(isHindi ? "ब्राउज़र में वॉयस इनपुट उपलब्ध नहीं है।" : "Web Speech API is not supported in this browser. Please use Chrome or Edge.");
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = language.toLowerCase().includes("hindi") ? "hi-IN" : (language.toLowerCase().includes("gujarat") ? "gu-IN" : "en-US");
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        showToast(isHindi ? "🎙️ सुन रहा हूँ... कृपया अपना शोध विषय बोलें" : "🎙️ Listening... Speak your research topic now.");
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setPrompt((prev) => (prev ? `${prev} ${transcript}` : transcript));
+          showToast(`🎙️ Voice Captured: "${transcript}"`);
+        }
+      };
+
+      recognition.onerror = (err) => {
+        console.warn("Speech recognition error:", err);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.warn("Voice input error:", err);
+      setIsListening(false);
+    }
+  };
+
+  // Text-to-Speech Audio Summary Podcast Player
+  const handlePlayAudioSummary = (doc) => {
+    if (!window.speechSynthesis) {
+      showToast("Speech Synthesis is not supported in this browser.");
+      return;
+    }
+
+    if (isPlayingAudio) {
+      window.speechSynthesis.cancel();
+      setIsPlayingAudio(false);
+      setAudioProgressText("");
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const cleanTitle = doc.title || "Research Paper";
+    const cleanAbstract = doc.sections?.abstract || doc.abstract || "";
+    const cleanFindings = Array.isArray(doc.keyFindings) ? doc.keyFindings.slice(0, 2).join(". ") : "";
+
+    const fullSpeechText = `Academic Research Audio Summary for: ${cleanTitle}. Authored by ${displayName}. Abstract: ${cleanAbstract}. Key Empirical Findings: ${cleanFindings}. Verified with 100 percent DOI lineage.`;
+
+    const utterance = new SpeechSynthesisUtterance(fullSpeechText);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    utterance.onstart = () => {
+      setIsPlayingAudio(true);
+      setAudioProgressText("Playing Audio Summary (Podcast Mode)...");
+    };
+
+    utterance.onend = () => {
+      setIsPlayingAudio(false);
+      setAudioProgressText("");
+    };
+
+    utterance.onerror = () => {
+      setIsPlayingAudio(false);
+      setAudioProgressText("");
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Stop audio on unmount or modal close
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   const handleStartGeneration = async (e) => {
     e.preventDefault();
@@ -282,6 +445,16 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
       a.download = `ThesisMate_Citations_${doc.id}.bib`;
       a.click();
       showToast(isHindi ? "BibTeX संदर्भ डाउनलोड हो गए।" : "Downloaded BibTeX bibliography (.bib).");
+    } else if (format === "Word" || format.includes("Word") || format.includes("doc")) {
+      const next = incrementUserPdfCount(active);
+      setPdfDownloadCount(next);
+      downloadDocx(doc, displayName);
+      showToast(isHindi ? "Microsoft Word (.doc) फ़ाइल डाउनलोड हो गई!" : "Downloaded Microsoft Word document (.doc)!");
+    } else if (format === "LaTeX" || format.includes("LaTeX") || format.includes("Overleaf") || format.includes("tex")) {
+      const next = incrementUserPdfCount(active);
+      setPdfDownloadCount(next);
+      downloadLatex(doc, displayName);
+      showToast(isHindi ? "LaTeX Source (.tex) फ़ाइल डाउनलोड हो गई!" : "Downloaded compilable LaTeX source code (.tex)!");
     } else {
       showToast(`Exporting "${doc.title.slice(0, 25)}..." as ${format}`);
     }
@@ -333,33 +506,6 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
               {activeT.dashSubtext || "Draft peer-reviewed scientific documents. Every time a draft is generated, the counters increase automatically."}
             </p>
           </div>
-        </div>
-
-        <div className="workspace-top-actions">
-          {onOpenProfile && (
-            <button
-              className="btn-outline bg-white"
-              onClick={onOpenProfile}
-              title="View Profile Details & Research Repositories"
-            >
-              <i className="fa-solid fa-user-tie"></i> {activeT.navProfile || "Profile Details"}
-            </button>
-          )}
-          <button
-            className="btn-outline bg-white"
-            onClick={() => onNavigate("home")}
-            title="Return to Landing Page"
-          >
-            <i className="fa-solid fa-house"></i> {activeT.dashHome || "Home"}
-          </button>
-          <button
-            className="btn-outline"
-            style={{ color: "var(--support-red)" }}
-            onClick={onLogout}
-            title="End your session"
-          >
-            <i className="fa-solid fa-arrow-right-from-bracket"></i> {activeT.dashLogout || "Logout"}
-          </button>
         </div>
       </div>
 
@@ -453,18 +599,32 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
         <form onSubmit={handleStartGeneration}>
           {/* Main Prompt Input Area */}
           <div className="prompt-input-wrapper">
-            <label className="prompt-field-label">
-              <i className="fa-solid fa-pen-nib"></i> {activeT.dashPromptLabel || "Research Topic, Hypothesis, or Thesis Statement"}
-            </label>
-            <textarea
-              className="prompt-textarea"
-              rows="3"
-              placeholder={activeT.dashPromptPlaceholder || "e.g. Comparative Analysis of Federated Learning Optimization in Edge IoT Networks under Asymmetric Data Drift..."}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              disabled={isGenerating}
-              required
-            />
+            <div className="prompt-field-header" style={{ marginBottom: "8px" }}>
+              <label className="prompt-field-label" style={{ margin: 0 }}>
+                <i className="fa-solid fa-pen-nib"></i> {activeT.dashPromptLabel || "Research Topic, Hypothesis, or Thesis Statement"}
+              </label>
+            </div>
+            <div className="prompt-textarea-box">
+              <textarea
+                className="prompt-textarea"
+                rows="3"
+                placeholder={isListening ? "🎙️ Listening to your microphone... Speak your research topic clearly..." : (activeT.dashPromptPlaceholder || "e.g. Comparative Analysis of Federated Learning Optimization in Edge IoT Networks under Asymmetric Data Drift...")}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                disabled={isGenerating}
+                required
+              />
+              <button
+                type="button"
+                className={`prompt-inside-mic-btn ${isListening ? "listening" : ""}`}
+                onClick={handleToggleVoiceInput}
+                disabled={isGenerating}
+                title={isListening ? "Listening... Click to stop" : "Voice Input (Speech-to-Text)"}
+                aria-label="Voice input microphone"
+              >
+                <i className={`fa-solid ${isListening ? "fa-microphone-lines fa-fade" : "fa-microphone"}`}></i>
+              </button>
+            </div>
 
             {/* Quick Topic Chips (Original Preset) */}
             <div className="preset-topics-tray">
@@ -864,6 +1024,100 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
                 </div>
               </div>
 
+              {/* 🎧 Feature 3: AI Audio Paper Summary (Text-to-Speech Podcast) */}
+              <div className="audio-podcast-player-bar">
+                <div className="audio-player-info">
+                  <span className="audio-mic-badge">
+                    <i className="fa-solid fa-podcast"></i> AI Audio Summary (2-Min Podcast)
+                  </span>
+                  <span className="audio-subtext">{audioProgressText || "Listen to executive abstract & verified empirical findings read aloud"}</span>
+                </div>
+                <div className="audio-controls-right">
+                  {isPlayingAudio && (
+                    <div className="soundwave-bars">
+                      <span className="bar"></span>
+                      <span className="bar"></span>
+                      <span className="bar"></span>
+                      <span className="bar"></span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className={`btn-audio-toggle ${isPlayingAudio ? "playing" : ""}`}
+                    onClick={() => handlePlayAudioSummary(selectedDoc)}
+                  >
+                    <i className={`fa-solid ${isPlayingAudio ? "fa-pause" : "fa-headphones"}`}></i>
+                    <span>{isPlayingAudio ? "Pause Audio" : "Listen to Summary 🎧"}</span>
+                  </button>
+                  {isPlayingAudio && (
+                    <button
+                      type="button"
+                      className="btn-audio-stop"
+                      onClick={() => {
+                        if (window.speechSynthesis) window.speechSynthesis.cancel();
+                        setIsPlayingAudio(false);
+                        setAudioProgressText("");
+                      }}
+                      title="Stop Audio"
+                    >
+                      <i className="fa-solid fa-stop"></i>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* LaTeX Monograph Contents (Table of Contents) Card */}
+              {(() => {
+                const monoChapters = selectedDoc.chapters || getMonographChapterDefinitions(selectedDoc.topic, selectedDoc.title, selectedDoc.pages);
+                const docPages = selectedDoc.pages || 40;
+                const refPage = Math.max(1, docPages - (docPages <= 12 ? 0 : (docPages <= 24 ? 1 : (docPages <= 50 ? 2 : (docPages <= 75 ? 3 : 4)))));
+                const refCount = selectedDoc.references?.length || Math.max(15, Math.round(docPages * 1.15));
+                return (
+                  <div className="latex-toc-card-viewer">
+                    <div className="latex-toc-card-header">
+                      <i className="fa-solid fa-book-bookmark text-green"></i>
+                      <span>Contents (LaTeX Monograph Table of Contents &bull; {docPages} Pages)</span>
+                    </div>
+                    <div className="latex-toc-list-reader">
+                      {monoChapters.map((ch) => (
+                        <React.Fragment key={ch.num}>
+                          <div className="toc-reader-row level-1">
+                            <span className="toc-reader-num">{ch.num}</span>
+                            <span className="toc-reader-title">{ch.title}</span>
+                            <span className="toc-reader-dots"></span>
+                            <span className="toc-reader-page">p. {ch.startPage}</span>
+                          </div>
+                          {(ch.subsections || []).map((sub) => (
+                            <React.Fragment key={sub.num}>
+                              <div className="toc-reader-row level-2">
+                                <span className="toc-reader-num">{sub.num}</span>
+                                <span className="toc-reader-title">{sub.title}</span>
+                                <span className="toc-reader-dots"></span>
+                                <span className="toc-reader-page">p. {sub.page}</span>
+                              </div>
+                              {(sub.subsubsections || []).map((ssub) => (
+                                <div key={ssub.num} className="toc-reader-row level-3">
+                                  <span className="toc-reader-num">{ssub.num}</span>
+                                  <span className="toc-reader-title">{ssub.title}</span>
+                                  <span className="toc-reader-dots"></span>
+                                  <span className="toc-reader-page">p. {ssub.page}</span>
+                                </div>
+                              ))}
+                            </React.Fragment>
+                          ))}
+                        </React.Fragment>
+                      ))}
+                      <div className="toc-reader-row level-1" style={{ marginTop: "8px" }}>
+                        <span className="toc-reader-num"></span>
+                        <span className="toc-reader-title">References & Scholarly Bibliography ({refCount} Sources)</span>
+                        <span className="toc-reader-dots"></span>
+                        <span className="toc-reader-page">p. {refPage}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* 1. Abstract & Keywords */}
               <div className="paper-section">
                 <h3>{selectedDoc.headers?.abstract || "1. Abstract"}</h3>
@@ -911,7 +1165,11 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
                 {selectedDoc.sections?.results && selectedDoc.sections.results.split("\n\n").map((p, idx) => (
                   <p key={idx} className="paper-paragraph">{p}</p>
                 ))}
-                <ul className="paper-findings-list" style={{ marginTop: "12px" }}>
+
+                {/* 📊 Feature 4: Interactive Scientific Data Graphs / Charts */}
+                <ResearchCharts doc={selectedDoc} />
+
+                <ul className="paper-findings-list" style={{ marginTop: "16px" }}>
                   {selectedDoc.keyFindings?.map((finding, idx) => (
                     <li key={idx}>
                       <span className="check-bullet">✓</span>
@@ -956,7 +1214,7 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
 
             {/* Modal Actions */}
             <div className="modal-footer-actions">
-              <div className="modal-footer-left">
+              <div className="modal-footer-left" style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                 <button
                   className="btn-primary"
                   onClick={() => handleExport(selectedDoc, "PDF")}
@@ -965,21 +1223,66 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
                 </button>
                 <button
                   className="btn-outline bg-white"
-                  onClick={() => handleExport(selectedDoc, "Overleaf / LaTeX")}
+                  onClick={() => handleExport(selectedDoc, "Word")}
+                  title="Download editable Microsoft Word document (.doc)"
                 >
-                  <i className="fa-solid fa-code"></i> {activeT.dashExportOverleaf || "Export to Overleaf"}
+                  <i className="fa-solid fa-file-word" style={{ color: "#2b579a" }}></i> Word (.doc)
+                </button>
+                <button
+                  className="btn-outline bg-white"
+                  onClick={() => handleExport(selectedDoc, "LaTeX")}
+                  title="Download compilable LaTeX source code (.tex)"
+                >
+                  <i className="fa-solid fa-code" style={{ color: "#008080" }}></i> LaTeX (.tex)
                 </button>
                 <button
                   className="btn-outline bg-white"
                   onClick={() => handleExport(selectedDoc, "BibTeX")}
+                  title="Download BibTeX citations"
                 >
                   <i className="fa-solid fa-book-bookmark"></i> BibTeX
+                </button>
+                <button
+                  className="btn-outline bg-white peer-review-trigger-btn"
+                  onClick={() => setIsPeerReviewOpen(true)}
+                  title="Simulate Double-Blind Academic Peer Review Evaluation"
+                  style={{ borderColor: "#b8860b", color: "#b8860b" }}
+                >
+                  <i className="fa-solid fa-graduation-cap"></i> Simulate Peer Review
+                </button>
+                <button
+                  className="btn-outline bg-white"
+                  onClick={() => setIsPlagiarismOpen(true)}
+                  title="Check Originality & Turnitin Similarity Audit"
+                  style={{ borderColor: "#1b8a5a", color: "#1b8a5a" }}
+                >
+                  <i className="fa-solid fa-shield-halved"></i> Plagiarism Audit
+                </button>
+                <button
+                  className="btn-outline bg-white"
+                  onClick={() => setIsDefenseSlidesOpen(true)}
+                  title="1-Click Thesis Defense Presentation Slide Deck (8 Slides)"
+                  style={{ borderColor: "#0a66c2", color: "#0a66c2" }}
+                >
+                  <i className="fa-solid fa-person-chalkboard"></i> Defense Slides
+                </button>
+                <button
+                  className="btn-outline bg-white"
+                  onClick={() => setIsCitationGraphOpen(true)}
+                  title="Interactive Citation Knowledge Graph & Connected Papers"
+                  style={{ borderColor: "#6f42c1", color: "#6f42c1" }}
+                >
+                  <i className="fa-solid fa-diagram-project"></i> Citation Graph
                 </button>
               </div>
 
               <button
                 className="btn-outline"
-                onClick={() => setSelectedDoc(null)}
+                onClick={() => {
+                  if (window.speechSynthesis) window.speechSynthesis.cancel();
+                  setIsPlayingAudio(false);
+                  setSelectedDoc(null);
+                }}
               >
                 {activeT.dashCloseViewer || "Close Viewer"}
               </button>
@@ -988,6 +1291,36 @@ export default function Dashboard({ currentUser, username, onLogout, onNavigate,
         </div>
       )}
 
+      {/* 🤖 Feature: Peer Review Modal */}
+      <PeerReviewModal
+        isOpen={isPeerReviewOpen}
+        onClose={() => setIsPeerReviewOpen(false)}
+        doc={selectedDoc}
+        author={displayName}
+      />
+
+      {/* 🛡️ Feature: Plagiarism & Turnitin Checker Modal */}
+      <PlagiarismModal
+        isOpen={isPlagiarismOpen}
+        onClose={() => setIsPlagiarismOpen(false)}
+        doc={selectedDoc}
+        author={displayName}
+      />
+
+      {/* 📊 Feature: 1-Click Defense Slide Deck Modal */}
+      <DefenseSlidesModal
+        isOpen={isDefenseSlidesOpen}
+        onClose={() => setIsDefenseSlidesOpen(false)}
+        doc={selectedDoc}
+        author={displayName}
+      />
+
+      {/* 🧩 Feature: Citation Knowledge Graph Modal */}
+      <CitationGraphModal
+        isOpen={isCitationGraphOpen}
+        onClose={() => setIsCitationGraphOpen(false)}
+        doc={selectedDoc}
+      />
 
     </div>
   );

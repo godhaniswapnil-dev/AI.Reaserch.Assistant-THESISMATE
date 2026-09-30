@@ -98,28 +98,55 @@ export function migrateUserData(oldUser, newUser) {
  * For a new user, returns an empty array [] (0 papers generated).
  */
 export function getUserDocs(user) {
-  const key = getUserKey(user);
-  if (!key || key === "guest") return [];
+  const key = getUserKey(user) || "guest";
+  let docs = [];
+
   try {
     const saved = localStorage.getItem("thesismate_docs_" + key);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) docs = parsed;
     }
   } catch (e) {
     console.error("Error loading user docs:", e);
   }
-  return []; // Strictly 0 papers for new or other users
+
+  // If this is a logged-in user, automatically inherit & merge any papers generated as guest on the Home Page
+  if (key !== "guest") {
+    try {
+      const guestSaved = localStorage.getItem("thesismate_docs_guest");
+      if (guestSaved) {
+        const guestDocs = JSON.parse(guestSaved);
+        if (Array.isArray(guestDocs) && guestDocs.length > 0) {
+          const existingIds = new Set(docs.map((d) => String(d.id)));
+          const unmerged = guestDocs.filter((d) => !existingIds.has(String(d.id)));
+          if (unmerged.length > 0) {
+            docs = [...unmerged, ...docs];
+            localStorage.setItem("thesismate_docs_" + key, JSON.stringify(docs));
+          }
+          localStorage.removeItem("thesismate_docs_guest");
+        }
+      }
+    } catch (e) {
+      console.error("Error migrating guest docs to active user:", e);
+    }
+  }
+
+  return docs;
 }
 
 /**
  * Saves isolated documents/papers strictly for this specific user.
+ * Automatically broadcasts an update event so the Dashboard and Profile sync immediately.
  */
 export function saveUserDocs(user, docs) {
-  const key = getUserKey(user);
-  if (!key || key === "guest") return;
+  const key = getUserKey(user) || "guest";
   try {
     localStorage.setItem("thesismate_docs_" + key, JSON.stringify(docs));
+    // Broadcast live event to synchronize Dashboard and other components
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("thesismate_docs_updated", { detail: { key, docs } }));
+    }
   } catch (e) {
     console.error("Error saving user docs:", e);
   }
@@ -129,32 +156,44 @@ export function saveUserDocs(user, docs) {
  * Loads total PDF exports count strictly for this specific user.
  */
 export function getUserPdfCount(user) {
-  const key = getUserKey(user);
-  if (!key || key === "guest") return 0;
+  const key = getUserKey(user) || "guest";
+  let count = 0;
   try {
     const saved = localStorage.getItem("thesismate_pdf_count_" + key);
     if (saved !== null) {
-      return Number(saved) || 0;
+      count = Number(saved) || 0;
+    }
+    // If logged in, merge any guest PDF counts
+    if (key !== "guest") {
+      const guestCount = Number(localStorage.getItem("thesismate_pdf_count_guest")) || 0;
+      if (guestCount > 0) {
+        count += guestCount;
+        localStorage.setItem("thesismate_pdf_count_" + key, String(count));
+        localStorage.removeItem("thesismate_pdf_count_guest");
+      }
     }
   } catch (e) {
     console.error("Error loading PDF count:", e);
   }
-  return 0; // Strictly 0 exports for new users
+  return count;
 }
 
 /**
  * Increments total PDF exports count strictly for this specific user and returns the new count.
  */
 export function incrementUserPdfCount(user) {
-  const key = getUserKey(user);
-  if (!key || key === "guest") return 1;
+  const key = getUserKey(user) || "guest";
   const current = getUserPdfCount(user);
   const next = current + 1;
   try {
     localStorage.setItem("thesismate_pdf_count_" + key, String(next));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("thesismate_docs_updated", { detail: { key } }));
+    }
   } catch (e) {
     console.error("Error updating PDF count:", e);
   }
   return next;
 }
+
 

@@ -69,6 +69,11 @@
     <None Include="..\clientapp\src\components\SettingsModal.js" Link="src\clientapp\src\components\SettingsModal.js" />
     <None Include="..\clientapp\src\components\PrivacyPolicyPage.js" Link="src\clientapp\src\components\PrivacyPolicyPage.js" />
     <None Include="..\clientapp\src\components\TermsOfServicePage.js" Link="src\clientapp\src\components\TermsOfServicePage.js" />
+    <None Include="..\clientapp\src\components\ResearchCharts.js" Link="src\clientapp\src\components\ResearchCharts.js" />
+    <None Include="..\clientapp\src\components\PeerReviewModal.js" Link="src\clientapp\src\components\PeerReviewModal.js" />
+    <None Include="..\clientapp\src\components\PlagiarismModal.js" Link="src\clientapp\src\components\PlagiarismModal.js" />
+    <None Include="..\clientapp\src\components\DefenseSlidesModal.js" Link="src\clientapp\src\components\DefenseSlidesModal.js" />
+    <None Include="..\clientapp\src\components\CitationGraphModal.js" Link="src\clientapp\src\components\CitationGraphModal.js" />
 
     <!-- Services in Solution Explorer -->
     <None Include="..\clientapp\src\services\researchGenerator.js" Link="src\clientapp\src\services\researchGenerator.js" />

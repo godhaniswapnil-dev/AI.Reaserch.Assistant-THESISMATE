@@ -116,7 +116,7 @@ export const translations = {
 
     // Integrations & Walkthrough Video Section
     trustedIntegrations: "TRUSTED INTEGRATIONS",
-    walkthroughSub: "WALKTHROUGH • 13 MIN WATCH",
+    walkthroughSub: "WALKTHROUGH • 2 MIN WATCH",
     walkthroughTitlePrefix: "See ThesisMate",
     walkthroughTitleItalic: "in action.",
     walkthroughDesc: "A short tour: import your Zotero library, pick a citation style, write the first draft, and watch every claim land with a verified source.",
@@ -358,7 +358,7 @@ export const translations = {
 
     // Integrations & Walkthrough Video Section
     trustedIntegrations: "विश्वसनीय इंटीग्रेशन",
-    walkthroughSub: "वॉकथ्रू • 13 मिनट का वीडियो",
+    walkthroughSub: "वॉकथ्रू • 2 मिनट का वीडियो",
     walkthroughTitlePrefix: "थीसिसमेट को",
     walkthroughTitleItalic: "काम करते हुए देखें।",
     walkthroughDesc: "संक्षिप्त गाइड: अपनी ज़ोटेरो लाइब्रेरी जोड़ें, साइटेशन स्टाइल चुनें, ड्राफ्ट लिखें और प्रत्येक दावे को सत्यापित स्रोत के साथ देखें।",

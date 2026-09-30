@@ -1,4 +1,11 @@
 // --- THESISMATE ADVANCED SCIENTIFIC RESEARCH & MULTI-PAGE MULTI-LINGUAL GENERATOR ---
+import {
+  generateMonographPages,
+  generatePrintablePdfHtml as generateLaTeXMonographPdf,
+  generateLatexMonographSource,
+  getMonographChapterDefinitions,
+  generateMonographReferences
+} from './thesisMonographEngine';
 
 /**
  * Intelligent topic classification and domain-specific knowledge synthesis.
@@ -358,7 +365,11 @@ export function generateFullPaper({
   ];
 
   // Format references in authentic international academic citation format
-  const references = formatReferences(papers, cleanPrompt, citationStyle, citationCount);
+  const targetRefCount = Math.max(15, Math.round(parsedPages * 1.15));
+  const monoRefs = generateMonographReferences(domain, cleanPrompt, targetRefCount);
+  const references = (monoRefs && monoRefs.length >= 15)
+    ? monoRefs.map(r => r.text)
+    : formatReferences(papers, cleanPrompt, citationStyle, citationCount);
 
   // Multilingual Header Titles
   const headersByLang = {
@@ -612,6 +623,7 @@ export function generateFullPaper({
     keywords: keywordsList,
     keyFindings: keyFindings,
     references: references,
+    chapters: getMonographChapterDefinitions(domain, cleanPrompt, parsedPages),
     headers: tHeaders,
     sections: {
       abstract: abstractText,
@@ -696,6 +708,10 @@ export async function generateFullPaperAsync({
  * The content is dynamically rendered in the chosen language, while References remain in official international citation format.
  */
 export function generateStructuredPages(doc, username = "Primary Researcher, Ph.D.") {
+  return generateMonographPages(doc, username);
+}
+
+export function generateStructuredPagesLegacy(doc, username = "Primary Researcher, Ph.D.") {
   const totalPages = Math.max(8, Number(doc.pages) || 30);
   const domain = doc.topic || classifyDomain(doc.title);
   const title = doc.title || "Empirical Research Investigation";
@@ -1342,292 +1358,116 @@ Output: Fully Formatted ${style} Academic Document Doc
  * Generate full printable multi-page HTML for real PDF export where total pages strictly matches doc.pages.
  */
 export function generatePrintablePdfHtml(doc, username) {
-  const structuredPages = generateStructuredPages(doc, username);
-  const totalPages = structuredPages.length;
+  return generateLaTeXMonographPdf(doc, username);
+}
 
-  return `
-    <!DOCTYPE html>
-    <html lang="en">
+/**
+ * Exports research paper as an editable Microsoft Word document (.doc).
+ */
+export function downloadDocx(doc, author = "Primary Researcher") {
+  if (!doc) return;
+  const cleanTitle = (doc.title || "Research_Paper").replace(/[^a-zA-Z0-9_\- ]/g, "").replace(/\s+/g, "_");
+  const content = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
     <head>
-      <meta charset="utf-8" />
-      <title>${doc.title} - ThesisMate Scientific PDF (${totalPages} Pages)</title>
+      <meta charset='utf-8'>
+      <title>${doc.title}</title>
+      <!--[if gte mso 9]>
+      <xml>
+        <w:WordDocument>
+          <w:View>Print</w:View>
+          <w:Zoom>100</w:Zoom>
+          <w:DoNotOptimizeForBrowser/>
+        </w:WordDocument>
+      </xml>
+      <![endif]-->
       <style>
         @page {
-          size: letter;
-          margin: 12mm 15mm 12mm 15mm;
-        }
-        * {
-          box-sizing: border-box;
+          size: 8.5in 11.0in;
+          margin: 1.0in 1.0in 1.0in 1.0in;
         }
         body {
-          font-family: 'Times New Roman', Times, 'Noto Sans Devanagari', 'Noto Sans Gujarati', serif;
-          color: #111111;
-          background: #ffffff;
-          margin: 0;
-          padding: 0;
-          line-height: 1.55;
-          font-size: 10.5pt;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-        .pdf-page {
-          width: 100%;
-          height: 254mm;
-          page-break-after: always;
-          page-break-inside: avoid;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 0 0 8px 0;
-          box-sizing: border-box;
-          overflow: hidden;
-          background: #ffffff;
-        }
-        .pdf-page:last-child {
-          page-break-after: auto;
-        }
-        .page-top-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 1.5px solid #222222;
-          padding-bottom: 4px;
-          margin-bottom: 12px;
-          font-size: 8pt;
-          color: #444444;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-        }
-        .page-bottom-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-top: 1px solid #cccccc;
-          padding-top: 4px;
-          margin-top: 8px;
-          font-size: 8pt;
-          color: #666666;
-        }
-        .pdf-page-content {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-start;
-        }
-        .page-title-banner {
-          text-align: center;
-          margin-bottom: 14px;
-        }
-        .journal-tag {
-          font-size: 8.5pt;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: #555555;
-          margin-bottom: 6px;
-        }
-        .paper-main-title {
-          font-size: 19pt;
-          font-weight: bold;
-          line-height: 1.25;
-          margin: 0 0 8px 0;
-          color: #111111;
-        }
-        .author-line {
-          font-size: 9.5pt;
-          color: #333333;
-          line-height: 1.4;
-        }
-        .meta-summary-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 14px;
-          background: #fafafa;
-          border: 1px solid #d0d0d0;
-          font-size: 8.8pt;
-        }
-        .meta-summary-table td {
-          padding: 6px 10px;
-          border: 1px solid #e0e0e0;
-        }
-        .verified-pill {
-          background: #eaf5f0;
-          color: #1b8a5a;
-          font-weight: bold;
-          padding: 1px 6px;
-          border-radius: 3px;
-        }
-        .abstract-container {
-          background: #fcfcfc;
-          border-left: 3px solid #111111;
-          padding: 10px 14px;
-          margin-bottom: 14px;
-        }
-        .section-title {
-          font-size: 11pt;
-          font-weight: bold;
-          margin: 0 0 6px 0;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-        }
-        .abstract-body {
-          font-style: italic;
-          text-align: justify;
-          margin: 0 0 8px 0;
+          font-family: 'Times New Roman', Times, serif;
+          font-size: 12pt;
           line-height: 1.5;
-          font-size: 9.8pt;
+          color: #000000;
         }
-        .keywords-row {
-          font-size: 9pt;
-          color: #333333;
-        }
-        .document-index-box {
-          background: #f7f7f7;
-          border: 1px solid #e2e2e2;
-          padding: 10px 12px;
-          border-radius: 4px;
-        }
-        .chapter-heading {
-          font-size: 13pt;
-          font-weight: bold;
-          margin: 0 0 10px 0;
-          border-bottom: 1px solid #333333;
-          padding-bottom: 3px;
-          color: #111111;
-        }
-        .sub-heading {
-          font-size: 11pt;
-          font-weight: bold;
-          margin: 12px 0 6px 0;
-          color: #222222;
-        }
-        .body-p {
-          text-align: justify;
-          text-indent: 1.5em;
-          margin: 0 0 10px 0;
-          line-height: 1.55;
-          font-size: 10.2pt;
-        }
-        .rq-list, .method-steps, .findings-bullet-list, .future-list {
-          margin: 6px 0 12px 0;
-          padding-left: 24px;
-          font-size: 9.8pt;
-        }
-        .rq-list li, .method-steps li, .findings-bullet-list li, .future-list li {
-          margin-bottom: 6px;
-          text-align: justify;
-        }
-        .callout-box {
-          background: #f4f8f6;
-          border-left: 3px solid #1b8a5a;
-          padding: 8px 12px;
-          margin: 12px 0;
-          font-size: 9.5pt;
-          color: #111111;
-        }
-        .academic-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 10px 0 14px 0;
-          font-size: 8.8pt;
-        }
-        .academic-table th {
-          background: #f0f0f0;
-          font-weight: bold;
-          border-top: 1.5px solid #111111;
-          border-bottom: 1.5px solid #111111;
-          padding: 6px 8px;
-          text-align: left;
-        }
-        .academic-table td {
-          border-bottom: 1px solid #e0e0e0;
-          padding: 6px 8px;
-        }
-        .academic-table tr:last-child td {
-          border-bottom: 1.5px solid #111111;
-        }
-        .math-proof-box {
-          background: #f8f8f8;
-          border: 1px solid #dddddd;
-          padding: 10px 14px;
-          margin: 12px 0;
-          text-align: center;
-        }
-        .math-title {
-          font-size: 9pt;
-          font-weight: bold;
-          text-transform: uppercase;
-          color: #444444;
-          margin-bottom: 6px;
-        }
-        .equation {
-          font-family: 'Courier New', Courier, monospace;
-          font-size: 10.5pt;
-          font-weight: bold;
-          margin: 6px 0;
-        }
-        .eq-desc {
-          font-size: 8.5pt;
-          color: #555555;
-          margin-top: 4px;
-          text-align: justify;
-        }
-        .code-box {
-          background: #f5f5f5;
-          border: 1px solid #e0e0e0;
-          padding: 8px 12px;
-          margin: 10px 0;
-          overflow: hidden;
-        }
-        .code-box pre {
-          margin: 0;
-          font-family: 'Courier New', Courier, monospace;
-          font-size: 8.2pt;
-          line-height: 1.35;
-          white-space: pre-wrap;
-        }
-        .references-list {
-          margin: 6px 0;
-          padding-left: 26px;
-          font-size: 8.8pt;
-          line-height: 1.45;
-        }
-        .references-list li {
-          margin-bottom: 8px;
-          text-align: justify;
-        }
-        @media print {
-          body {
-            padding: 0;
-          }
-          .pdf-page {
-            margin: 0;
-          }
-        }
+        h1 { font-size: 18pt; text-align: center; margin-bottom: 12pt; font-weight: bold; }
+        .meta-line { text-align: center; font-style: italic; margin-bottom: 18pt; }
+        h2 { font-size: 14pt; margin-top: 16pt; margin-bottom: 6pt; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 3pt; }
+        p { margin-bottom: 10pt; text-align: justify; text-indent: 0.3in; }
+        .abstract-box { margin: 16pt 0; padding: 10pt; border: 1px solid #999; background: #f9f9f9; }
+        ol { margin-left: 20pt; }
+        li { margin-bottom: 6pt; }
       </style>
     </head>
     <body>
-      ${structuredPages.map(page => `
-        <div class="pdf-page">
-          <div class="page-top-header">
-            <span>ThesisMate AI Research Studio &bull; ${doc.title.slice(0, 48)}...</span>
-            <span>Page ${page.pageNum} of ${totalPages}</span>
-          </div>
+      <h1>${doc.title}</h1>
+      <div class="meta-line">
+        <strong>${author}</strong><br/>
+        ThesisMate Academic Research Studio &bull; ${doc.style || "APA 7th"} Standard &bull; ${doc.pages || 30} Pages (~${doc.words || (doc.pages ? doc.pages * 320 : 9600)} words)
+      </div>
 
-          <div class="pdf-page-content">
-            ${page.html}
-          </div>
+      <div class="abstract-box">
+        <strong>ABSTRACT:</strong>
+        <p>${doc.sections?.abstract || doc.abstract || ""}</p>
+        ${doc.keywords?.length ? `<p><strong>Keywords:</strong> ${Array.isArray(doc.keywords) ? doc.keywords.join(", ") : doc.keywords}</p>` : ""}
+      </div>
 
-          <div class="page-bottom-footer">
-            <span>${doc.style} Edition &bull; ${doc.topic}</span>
-            <span>&check; Authenticated Document &bull; 100% DOI Lineage Verified</span>
-          </div>
-        </div>
-      `).join("")}
+      <h2>1. Introduction & Research Problem Formulation</h2>
+      <p>${(doc.sections?.intro || "").replace(/\n\n/g, "</p><p>")}</p>
 
-      <script>
-        setTimeout(() => { window.print(); }, 400);
-      </script>
+      <h2>2. Systematic Literature Review & Multi-Repository Taxonomy</h2>
+      <p>${(doc.sections?.litReview || "").replace(/\n\n/g, "</p><p>")}</p>
+
+      <h2>3. Empirical Methodology & Architectural Design</h2>
+      <p>${(doc.sections?.methodology || "").replace(/\n\n/g, "</p><p>")}</p>
+
+      <h2>4. Key Research Findings & Quantitative Evaluation</h2>
+      <p>${(doc.sections?.results || "").replace(/\n\n/g, "</p><p>")}</p>
+
+      <h2>5. Critical Discussion & Integrity Verification</h2>
+      <p>${(doc.sections?.discussion || "").replace(/\n\n/g, "</p><p>")}</p>
+
+      <h2>6. Conclusion & Future Research Trajectories</h2>
+      <p>${(doc.sections?.conclusion || "").replace(/\n\n/g, "</p><p>")}</p>
+
+      <h2>References & Bibliography (${doc.style || "APA 7th"})</h2>
+      <ol>
+        ${(doc.references || []).map(r => `<li>${r}</li>`).join("")}
+      </ol>
     </body>
     </html>
   `;
+
+  const blob = new Blob(['\ufeff', content], {
+    type: 'application/msword;charset=utf-8'
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ThesisMate_${cleanTitle.slice(0, 30)}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Exports research paper as a compilable standard LaTeX document (.tex).
+ */
+export function downloadLatex(doc, author = "Primary Researcher") {
+  if (!doc) return;
+  const cleanTitle = (doc.title || "Research_Paper").replace(/[^a-zA-Z0-9_\- ]/g, "").replace(/\s+/g, "_");
+  const latexSource = generateLatexMonographSource(doc, author);
+
+  const blob = new Blob([latexSource], { type: "text/x-tex;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ThesisMate_${cleanTitle.slice(0, 30)}_Monograph.tex`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
